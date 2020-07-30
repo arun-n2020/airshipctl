@@ -101,6 +101,30 @@
     voting: false
 
 - job:
+    name: airship-airshipctl-gate-script-runner-dockertest
+    attempts: 1
+    timeout: 3600
+    pre-run: playbooks/airship-airshipctl-deploy-docker.yaml
+    post-run: playbooks/airship-collect-logs.yaml
+    run: playbooks/airshipctl-gate-runner.yaml
+    nodeset: airship-airshipctl-single-16GB-bionic-node
+    vars:
+      site_name: docker-test-site
+      gate_scripts:
+        - ./tools/deployment/docker/00_install_kind.sh
+        - ./tools/deployment/01_install_kubectl.sh
+        - ./tools/deployment/docker/02_install_go.sh
+        - ./tools/deployment/docker/03_install_kustomize_docker.sh
+        - ./tools/deployment/docker/11_build_kind_cluster.sh
+        - ./tools/deployment/21_systemwide_executable.sh
+        - ./tools/deployment/docker/31_create_configs.sh
+        - ./tools/deployment/docker/41_initialize_management_cluster.sh
+        - ./tools/deployment/docker/51_deploy_workload_cluster.sh
+      serve_dir: /srv/iso
+      serve_port: 8099
+    voting: false
+
+- job:
     name: airship-airshipctl-publish-image
     parent: airship-airshipctl-build-image
     post-run: playbooks/airship-airshipctl-publish-images.yaml
@@ -111,3 +135,4 @@
     vars:
       image: quay.io/airshipit/airshipctl
       image_repo: https://quay.io/api/v1/
+
