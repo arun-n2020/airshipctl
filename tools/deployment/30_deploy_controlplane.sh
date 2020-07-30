@@ -75,9 +75,6 @@ fi
 echo "Create kubeconfig"
 echo ${KUBECONFIG} | base64 -d > /tmp/targetkubeconfig
 
-echo "Import target kubeconfig"
-airshipctl config import /tmp/targetkubeconfig
-
 echo "Check kubectl version"
 VERSION=""
 N=0

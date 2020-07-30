@@ -15,15 +15,11 @@
 package implementations
 
 import (
-	"os"
-	"regexp"
-
 	clusterctlv1 "sigs.k8s.io/cluster-api/cmd/clusterctl/api/v1alpha3"
 	"sigs.k8s.io/cluster-api/cmd/clusterctl/client/config"
 	"sigs.k8s.io/yaml"
 
 	airshipv1 "opendev.org/airship/airshipctl/pkg/api/v1alpha1"
-	"opendev.org/airship/airshipctl/pkg/log"
 )
 
 var _ config.Reader = &AirshipReader{}
@@ -36,8 +32,7 @@ const (
 
 // AirshipReader provides a reader implementation backed by a map
 type AirshipReader struct {
-	variables   map[string]string
-	varsFromEnv bool
+	variables map[string]string
 }
 
 // configProvider is a mirror of config.Provider, re-implemented here in order to
@@ -56,20 +51,10 @@ func (f *AirshipReader) Init(config string) error {
 
 // Get implementation of clusterctl reader interface
 func (f *AirshipReader) Get(key string) (string, error) {
-	// if value is set in variables - return it, variables from variables map take precedence over
-	// env variables
+	// TODO handle empty keys
 	if val, ok := f.variables[key]; ok {
 		return val, nil
 	}
-	// if we are allowed to check environment variables and key is allowed to be taken from env
-	// look it up and return
-	if f.varsFromEnv && allowFromEnv(key) {
-		val, ok := os.LookupEnv(key)
-		if ok {
-			return val, nil
-		}
-	}
-	// if neither env nor variables slice has the var, return error
 	return "", ErrValueForVariableNotSet{Variable: key}
 }
 
@@ -88,23 +73,6 @@ func (f *AirshipReader) UnmarshalKey(key string, rawval interface{}) error {
 	return yaml.Unmarshal([]byte(data), rawval)
 }
 
-func allowFromEnv(key string) bool {
-	variableRegEx := regexp.MustCompile(`^([A-Z0-9_$]+)$`)
-	log.Debugf("Verifying that variable %s is allowed to be taken from environment", key)
-	return variableRegEx.MatchString(key)
-}
-
-func allowAppend(key, _ string) bool {
-	// TODO Investigate if more vaildation should be done here
-	forbidenVars := map[string]string{
-		config.ProvidersConfigKey: "",
-		imagesConfigKey:           "",
-	}
-	_, forbid := forbidenVars[key]
-	log.Debugf("Verifying that variable %s is allowed to be appended", key)
-	return !forbid
-}
-
 // NewAirshipReader returns airship implementation of clusterctl reader interface
 func NewAirshipReader(options *airshipv1.Clusterctl) (*AirshipReader, error) {
 	variables := map[string]string{}
@@ -121,18 +89,9 @@ func NewAirshipReader(options *airshipv1.Clusterctl) (*AirshipReader, error) {
 	if err != nil {
 		return nil, err
 	}
-	for key, val := range options.AdditionalComponentVariables {
-		// if variable is not allowed, it will be ignored
-		if allowAppend(key, val) {
-			variables[key] = val
-		}
-	}
 	// Add providers to config
 	variables[config.ProvidersConfigKey] = string(b)
 	// Add empty image configuration to config
 	variables[imagesConfigKey] = ""
-	return &AirshipReader{
-		variables:   variables,
-		varsFromEnv: options.EnvVars,
-	}, nil
+	return &AirshipReader{variables: variables}, nil
 }

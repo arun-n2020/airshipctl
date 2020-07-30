@@ -86,10 +86,9 @@ func (f RepositoryFactory) repoFactory(provider config.Provider) (repository.Cli
 			return nil, err
 		}
 		return &implementations.RepositoryClient{
-			Client:               repoClient,
-			ProviderType:         string(repoType),
-			ProviderName:         name,
-			VariableSubstitution: airProv.VariableSubstitution}, nil
+			Client:       repoClient,
+			ProviderType: string(repoType),
+			ProviderName: name}, nil
 	}
 	log.Printf("Creating clusterctl repository implementation interface for provider %s of type %s\n",
 		name,

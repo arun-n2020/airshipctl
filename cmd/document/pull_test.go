@@ -25,7 +25,7 @@ import (
 )
 
 func getDummyAirshipSettings() *environment.AirshipCTLSettings {
-	settings := &environment.AirshipCTLSettings{Config: testutil.DummyConfig(), Create: true}
+	settings := &environment.AirshipCTLSettings{Config: testutil.DummyConfig()}
 
 	fx := fixtures.Basic().One()
 
@@ -50,7 +50,7 @@ func TestPull(t *testing.T) {
 		{
 			Name:    "document-pull-cmd",
 			CmdLine: "",
-			Cmd:     NewPullCommand(getDummyAirshipSettings()),
+			Cmd:     NewPullCommand(getDummyAirshipSettings(), false),
 		},
 	}
 
