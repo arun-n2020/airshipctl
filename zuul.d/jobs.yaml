@@ -120,6 +120,9 @@
         - ./tools/deployment/docker/31_create_configs.sh
         - ./tools/deployment/docker/41_initialize_management_cluster.sh
         - ./tools/deployment/docker/51_deploy_workload_cluster.sh
+        - ./tools/deployment/docker/52_cluster_init_target_node.sh
+        - ./tools/deployment/docker/53_cluster_move_to_target_node.sh
+        - ./tools/deployment/docker/54_deploy_CNF_n_depends_target_node.sh
       serve_dir: /srv/iso
       serve_port: 8099
     voting: false
@@ -135,4 +138,3 @@
     vars:
       image: quay.io/airshipit/airshipctl
       image_repo: https://quay.io/api/v1/
-
