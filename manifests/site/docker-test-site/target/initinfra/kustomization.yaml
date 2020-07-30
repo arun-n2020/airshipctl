@@ -1,4 +1,5 @@
 resources:
   - ../../shared/clusterctl
+  - ../../../../function/helm-controller
 commonLabels:
   airshipit.org/stage: initinfra
