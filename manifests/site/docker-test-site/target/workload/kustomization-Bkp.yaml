@@ -1,6 +1,8 @@
 resources:
   - namespace.yaml
+    #- bridge.yaml  
   - helmrelease.yaml
+  - configmap.yaml
 generatorOptions:
   disableNameSuffixHash: true
 secretGenerator:

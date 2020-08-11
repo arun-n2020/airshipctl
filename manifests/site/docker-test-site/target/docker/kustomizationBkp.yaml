@@ -1,8 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+generatorOptions:
+    disableNameSuffixHash: true
+kind: Kustomization
 resources:
-  - namespace.yaml
-  - crd
-  - rbac
-  - deployment.yaml
+- dtc.yaml
+- ../../../../function/helm-controller
+secretGenerator: []
 patchesJSON6902:
 - target:
     group: apps
@@ -11,11 +14,11 @@ patchesJSON6902:
     name: helm-operator
     namespace: flux
   patch: |-
-   #- op: remove
-   #  path: /spec/template/spec/tolerations
     - op: remove
       path: /spec/template/spec/dnsConfig
     - op: remove
       path: /spec/template/spec/dnsPolicy
     - op: remove
       path: /spec/template/spec/nodeSelector
+    - op: remove
+      path: /spec/template/spec/tolerations

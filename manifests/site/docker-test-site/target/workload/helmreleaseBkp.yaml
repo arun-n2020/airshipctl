@@ -1,0 +1,48 @@
+---
+apiVersion: "helm.fluxcd.io/v1"
+kind: HelmRelease
+metadata:
+  name: vpp
+spec:
+  values:
+    privileged: true
+    image:
+      repository: soelvkaer/vppcontainer
+      tag: latest
+      imagePullPolicy: IfNotPresent
+
+    volumeMounts:
+      vpp_sockets:
+        mountPath: /root/sockets
+
+    cnf:
+      1:
+        main_core: 1
+        worker_cores: '2,3'
+      2:
+        main_core: 4
+        worker_cores: '5,6'
+    
+
+  chart:
+    git: https://github.com/cncf/cnf-testbed.git
+    #git: "git@github.com:cncf/cnf-testbed"
+    ref: master
+    path: "examples/network_functions/vpp-ip-forwarder/vpp"
+    gitTimeout: 30
+    secretRef:
+      name: git-https-credentials
+      #name: flux-git-deploy
+   
+#  rawCNIConfig: |-
+#    {
+#      "name": "ipfwd-bridge",
+#      "cniVersion": "0.3.1",
+#      "type": "bridge",
+#      "bridge": "ipfwdbr"
+#      "ipam": {
+#        "type": "dhcp"
+#        }
+#    }
+	
+	

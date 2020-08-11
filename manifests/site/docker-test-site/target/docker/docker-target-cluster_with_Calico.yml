@@ -65,7 +65,7 @@ spec:
         content: |
           #!/bin/sh -x
           su - root -c "sleep 10; kubectl --kubeconfig /etc/kubernetes/admin.conf apply -f https://docs.projectcalico.org/v3.12/manifests/calico.yaml"
-          su - root -c "apt-get update && apt-get install -y git && git clone https://github.com/intel/multus-cni.git && cat ./multus-cni/images/multus-daemonset.yml | kubectl --kubeconfig /etc/kubernetes/admin.conf apply -f -"
+          su - root -c "curl -fsSL https://github.com/containernetworking/plugins/releases/download/v0.8.6/cni-plugins-linux-amd64-v0.8.6.tgz | tar -xz -C /opt/cni/bin/"
     initConfiguration:
       nodeRegistration:
         criSocket: /var/run/containerd/containerd.sock
@@ -101,20 +101,11 @@ metadata:
 spec:
   template:
     spec:
-      files:
-      - path: /cniplugin.sh
-        owner: root:root
-        permissions: "0755"
-        content: |
-          #!/bin/sh -x
-          su - root -c "curl -fsSL https://github.com/containernetworking/plugins/releases/download/v0.8.6/cni-plugins-linux-amd64-v0.8.6.tgz | tar -xz -C /opt/cni/bin/" 
       joinConfiguration:
         nodeRegistration:
           criSocket: /var/run/containerd/containerd.sock
           kubeletExtraArgs:
             eviction-hard: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%
-      postKubeadmCommands:
-       - sh /cniplugin.sh
 ---
 apiVersion: cluster.x-k8s.io/v1alpha3
 kind: MachineDeployment

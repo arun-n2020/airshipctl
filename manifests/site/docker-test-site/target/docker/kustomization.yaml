@@ -3,6 +3,5 @@ generatorOptions:
     disableNameSuffixHash: true
 kind: Kustomization
 resources:
-  - ../../../../function/k8scontrol-capd
-  - dtc.yaml
+- dtc.yaml
 secretGenerator: []

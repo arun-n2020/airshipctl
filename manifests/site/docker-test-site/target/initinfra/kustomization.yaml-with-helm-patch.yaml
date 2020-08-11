@@ -1,8 +1,8 @@
 resources:
-  - namespace.yaml
-  - crd
-  - rbac
-  - deployment.yaml
+  - ../../shared/clusterctl  
+  - ../../../../function/helm-controller
+commonLabels:
+  airshipit.org/stage: initinfra
 patchesJSON6902:
 - target:
     group: apps
@@ -11,11 +11,11 @@ patchesJSON6902:
     name: helm-operator
     namespace: flux
   patch: |-
-   #- op: remove
-   #  path: /spec/template/spec/tolerations
     - op: remove
       path: /spec/template/spec/dnsConfig
     - op: remove
       path: /spec/template/spec/dnsPolicy
     - op: remove
       path: /spec/template/spec/nodeSelector
+    - op: remove
+      path: /spec/template/spec/tolerations

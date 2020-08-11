@@ -1,0 +1,20 @@
+apiVersion: operator.openshift.io/v1
+kind: Network
+metadata:
+  name: cluster
+spec:
+  ...
+  additionalNetworks:
+  - name: ipfwd-bridge
+    namespace: default
+    rawCNIConfig: |-
+    {
+      "name": "ipfwd-bridge",
+      "cniVersion": "0.3.1",
+      "type": "bridge",
+      "bridge": "ipfwdbr",
+      "ipam": {
+        "type": "dhcp"
+      }
+    }
+
