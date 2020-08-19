@@ -1,102 +1,87 @@
 # Airshipctl and Cluster API Docker Integration
 
-- [Airshipctl and Cluster API Docker Integration](#airshipctl-and-cluster-api-docker-integration)
-  - [Overview](#overview)
-  - [Patchset Usage - Video Demonstration](#patchset-usage---video-demonstration)
-  - [Airshipctl Operations](#airshipctl-operations)
-  - [Airshipctl and Docker Test Site Manifests](#airshipctl-and-docker-test-site-manifests)
-  - [Common Pre-requisites](#common-pre-requisites)
-  - [Install and configure a kubernetes cluster](#install-and-configure-a-kubernetes-cluster)
-  - [Create airshipctl configuration files](#create-airshipctl-configuration-files)
-  - [Pull documents from airshipctl repository](#pull-documents-from-airshipctl-repository)
-  - [Use the latest patchset for docker](#use-the-latest-patchset-for-docker)
-  - [Docker Overrides - Generate Metadata for infrastructure  provider docker](#docker-overrides---generate-metadata-for-infrastructure-provider-docker)
-  - [Initialize the management cluster](#initialize-the-management-cluster)
-  - [Create your first workload cluster](#create-your-first-workload-cluster)
-  - [Reference](#reference)
-    - [Cluster Api Docker Provider Manifests](#cluster-api-docker-provider-manifests)
-    - [Local Overrides For Docker](#local-overrides-for-docker)
-    - [CAPD Manager Image Version](#capd-manager-image-version)
-    - [Docker Test Site Manifests](#docker-test-site-manifests)
-      - [Management cluster](#management-cluster)
-      - [Target workload cluster](#target-workload-cluster)
-    - [Airshipctl Configuration File](#airshipctl-configuration-file)
-    - [Software Version Information](#software-version-information)
-      - [Docker](#docker)
-      - [Kind](#kind)
-      - [Kubectl](#kubectl)
-      - [Go](#go)
-      - [Kustomize](#kustomize)
-      - [OS](#os)
-      - [Special Instructions](#special-instructions)
-      - [Virtual Machine Specification](#virtual-machine-specification)
-  - [Future Improvements](#future-improvements)
-    - [Remove usage of docker overrides](#remove-usage-of-docker-overrides)
-  - [See Also](#see-also)
-    - [Zuul Check And Testing Scripts Locally](#zuul-check-and-testing-scripts-locally)
+## Table of Contents
+
+  - [Overview](#Overview)
+  - [Workflow](#Workflow)
+  - [Common Pre-requisites](#Common-Pre-requisites)
+  - [Getting Started](#Getting-Started)
+  - [Create airshipctl configuration
+    files](#Create-airshipctl-configuration-files)
+  - [Use the latest patchset](#Use-the-latest-patchset)
+  - [Initialize the management cluster](#Initialize-the-management-cluster)
+  - [Create your first workload cluster](#Create-your-first-workload-cluster)
+  - [Reference](#Reference)
+    - [Provider Manifests](#Provider-Manifests)
+    - [Cluster Templates](#Cluster-Templates)
+    - [Test Site Manifests](#Test-Site-Manifests)
+    - [Software Version Information](#Software-Version-Information)
+      - [Virtual Machine Specification](#Virtual-Machine-Specification)
+      - [Docker](#Docker)
+      - [Kind](#Kind)
+      - [Kubectl](#Kubectl)
+      - [Go](#Go)
+      - [Kustomize](#Kustomize)
+      - [OS](#OS)
+  - [Special Instructions](#Special-Instructions)
+  - [Future Improvements](#Future-Improvements)
 
 ## Overview
+Airshipctl and cluster api docker integration facilitates usage of `airshipctl`
+to create cluster api management and workload clusters using `docker as
+infrastructure provider`. Airshipctl and cluster api docker integration is
+available as a part of patchset - `https://review.opendev.org/#/c/737871/`. This
+document provides information on usage of the patchset.
 
-Airshipctl and cluster api docker integration facilitates usage of `airshipctl` to create cluster api management and workload clusters using `docker as infrastructure provider`. This document provides instructions on the usage of airshipctl, to perform the following operations using docker as infrastructure provider:
+For suggesting improvements to the patchset, check
+[Feedback](https://hackmd.io/zRBXoX9fR5O2JjmGme5r1Q?view)
 
-- Initialize the management cluster with cluster api, and cluster api docker provider components
-- Create a target workload cluster, and deploy calico as the CNI solution on the target workload cluster
+## Workflow
+A simple workflow that can be tested using the patchset, involves the following
+operations:
 
-Airshipctl uses the information available in the manifests to initialize the management cluster, deploy the target workload cluster, and deploy calico as the CNI solution on the target workload cluster.
+**Initialize the management cluster with cluster api and docker provider
+components**
 
-Airshipctl and cluster api docker integration is available as a part of patchset - `https://review.opendev.org/#/c/737871/`. The document also provides information on usage of the patchset.
+> airshipctl cluster init --debug
 
-The patchset has also been tested locally. For more information on Zuul check and local testing, visit [Zuul Check And Testing Scripts Locally](tests/README.md)
+**Create a workload cluster, with control plane and worker nodes**
 
-## Patchset Usage - Video Demonstration
+> airshipctl phase apply controlplane
 
-A video demonstrating usage of the patchset `https://review.opendev.org/#/c/737871/`
+> airshipctl phase apply workers
 
-[![asciicast](https://asciinema.org/a/5FNDbWYlJpm1swwnDLZCTRfpk.svg)](https://asciinema.org/a/5FNDbWYlJpm1swwnDLZCTRfpk)
+Note: `airshipctl phase apply initinfra` is not used because all the provider components
+are initialized  using `airshipctl cluster init`
 
-## Airshipctl Operations
+The phase `initinfra` is included in the patchset just to get `validate docs` to pass.
 
-**Initialize the management cluster with cluster api and docker provider components**
-
-`$ airshipctl cluster init`
-
-**Create a target workload cluster, and deploy calico as CNI solution on the target workload cluster**
-
-`$ airshipctl phase apply docker`
-
-## Airshipctl and Docker Test Site Manifests
-
-`airshipctl cluster init` utilizes the manifests currently available in site `airshipctl/manifests/site/docker-test-site/shared` to initialize the management cluster with the following provider components and version.
-
-| provider component name | provider component type | provider component version |
-| ----------------------- | ----------------------- | -------------------------- |
-| docker                  | infrastructure-provider | v0.3.0                     |
-| cluster-api             | core-provider           | v0.3.3                     |
-| kubeadm                 | control-plane-provider  | v0.3.3                     |
-| kubeadm                 | bootstrap-provider      | v0.3.3                     |
-
- `airshipctl phase apply docker` uses the manifests  available in `airshipctl/manifests/site/docker-test-site/target` to create a target workload cluster with 1 control plane and 1 machine deployment. The target cluster kubernetes version is v1.17.0
-
-The spec for `kubeadmcontrolplane` in the target workload cluster manifest, deploys calico as the CNI solution using the postkubeadm command `kubectl --kubeconfig /etc/kubernetes/admin.conf apply -f https://docs.projectcalico.org/v3.12/manifests/calico.yaml`
-
-For more information, on understanding the manifests currently available for docker, refer to the manifest information available in [Reference](#reference)
+For more information. [Check](https://hackmd.io/MFOB-oaxRHuD39gGB7GCTQ?view)
 
 
 ## Common Pre-requisites
 
 * Install [Docker](https://www.docker.com/)
-* Install and setup [Kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
+* Install [Kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
 * Install [Kind](https://kind.sigs.k8s.io/)
-* Install [Kustomize](https://kubernetes-sigs.github.io/kustomize/installation/binaries/)
-* Install Airshipctl [Airshipctl](https://docs.airshipit.org/airshipctl/developers.html)
+* Install
+  [Kustomize](https://kubernetes-sigs.github.io/kustomize/installation/binaries/)
+* Install [Airshipctl](https://docs.airshipit.org/airshipctl/developers.html)
 
-Also, check [Software Version Information](#software-version-information), [Special Instructions](#special-instructions) and [Virtual Machine Specification](#virtual-machine-specification)
+Also, check [Software Version Information](#Software-Version-Information),
+[Special Instructions](#Special-Instructions) and [Virtual Machine
+Specification](#Virtual-Machine-Specification)
 
-## Install and configure a kubernetes cluster
+## Getting Started
 
-Kind will be used to setup a kubernetes cluster. The kubernetes cluster will be later transformed into a management cluster using airshipctl. The kind kubernetes cluster will be initialized with cluster API and Cluster API docker provider components.
+Kind will be used to setup a kubernetes cluster, that will be later transformed
+into a management cluster using airshipctl. The kind kubernetes cluster will be
+initialized with cluster API and Cluster API docker provider components.
 
-Run the following command to create a kind configuration file, that  would mount the docker.sock file from the host operating system into the kind cluster. This is required by the management cluster to create machines as docker containers.
+Run the following command to create a kind configuration file, that  would mount
+the docker.sock file from the host operating system into the kind cluster. This
+is required by the management cluster to create machines on host as docker
+containers.
 
 $ vim kind-cluster-with-extramounts.yaml
 
@@ -113,11 +98,15 @@ nodes:
 
 Save and exit.
 
-$ kind create cluster --config kind-cluster-with-extramounts.yaml --name capi-docker
+$ export KIND_EXPERIMENTAL_DOCKER_NETWORK=bridge
 
+$ kind create cluster --name capi-docker --config
+~/kind-cluster-with-extramounts.yaml
 ```
 Creating cluster "capi-docker" ...
- ✓ Ensuring node image (kindest/node:v1.17.0) 🖼
+WARNING: Overriding docker network due to KIND_EXPERIMENTAL_DOCKER_NETWORK
+WARNING: Here be dragons! This is not supported currently.
+ ✓ Ensuring node image (kindest/node:v1.18.2) 🖼
  ✓ Preparing nodes 📦
  ✓ Writing configuration 📜
  ✓ Starting control-plane 🕹️
@@ -127,75 +116,43 @@ Set kubectl context to "kind-capi-docker"
 You can now use your cluster with:
 
 kubectl cluster-info --context kind-capi-docker
-
-```
 Check if all the pods are up.
+```
 
 $ kubectl get pods -A
 
 ```
 NAMESPACE            NAME                                                READY   STATUS    RESTARTS   AGE
-kube-system          coredns-6955765f44-76mqd                            1/1     Running   0          96s
-kube-system          coredns-6955765f44-jd62f                            1/1     Running   0          96s
-kube-system          etcd-capi-docker-control-plane                      1/1     Running   0          108s
-kube-system          kindnet-8q2jz                                       1/1     Running   0          96s
-kube-system          kube-apiserver-capi-docker-control-plane            1/1     Running   0          108s
-kube-system          kube-controller-manager-capi-docker-control-plane   1/1     Running   0          108s
-kube-system          kube-proxy-wp4lz                                    1/1     Running   0          96s
-kube-system          kube-scheduler-capi-docker-control-plane            1/1     Running   0          108s
-local-path-storage   local-path-provisioner-7745554f7f-wpfrv             1/1     Running   0          96s
+kube-system          coredns-6955765f44-fvg8p                            1/1     Running   0          72s
+kube-system          coredns-6955765f44-gm96d                            1/1     Running   0          72s
+kube-system          etcd-capi-docker-control-plane                      1/1     Running   0          83s
+kube-system          kindnet-7fqv6                                       1/1     Running   0          72s
+kube-system          kube-apiserver-capi-docker-control-plane            1/1     Running   0          83s
+kube-system          kube-controller-manager-capi-docker-control-plane   1/1     Running   0          83s
+kube-system          kube-proxy-gqlnm                                    1/1     Running   0          72s
+kube-system          kube-scheduler-capi-docker-control-plane            1/1     Running   0          83s
+local-path-storage   local-path-provisioner-7745554f7f-2qcv7             1/1     Running   0          72s
 ```
 
 ## Create airshipctl configuration files
 
 $ mkdir ~/.airship
 
-$ cp ~/.kube/config ~/.airship/kubeconfig
-
-$ touch ~/.airship/config
+$ cp -rp ~/.kube/config ~/.airship/kubeconfig
 
 $ airshipctl config init
 
-$ airshipctl config get-context
+$ airshipctl config set-manifest docker_manifest --repo primary --url
+https://review.opendev.org/airship/airshipctl --branch master --primary
+--sub-path manifests/site/docker-test-site --target-path /tmp/airship/airshipctl
 
 ```
-Context: kind-capi-docker
-contextKubeconf: kind-capi-docker_target
-
-LocationOfOrigin: /home/rishabh/.airship/kubeconfig
-cluster: kind-capi-docker_target
-user: kind-capi-docker
+Manifest "docker_manifest" created.
 ```
-
-Add the `docker-manifest` section (starts from docker_manifest: ) to manifests in `~/.airship/config`
-
-$ vim ~/.airship/config
-
-```
-manifests:
-  docker_manifest:
-    primaryRepositoryName: primary
-    repositories:
-      primary:
-        checkout:
-          branch: master
-          commitHash: ""
-          force: false
-          tag: ""
-        url: https://review.opendev.org/airship/airshipctl
-    subPath: airshipctl/manifests/site/docker-test-site
-    targetPath: /tmp/airship
-```
-save and exit
-
-Configure the kind-capi-docker context to use docker_manifest as manifest.
-
 $ airshipctl config set-context kind-capi-docker --manifest docker_manifest
-
 ```
 Context "kind-capi-docker" modified.
 ```
-
 $ airshipctl config get-context
 
 ```
@@ -208,14 +165,7 @@ cluster: kind-capi-docker_target
 user: kind-capi-docker
 ```
 
-## Pull documents from airshipctl repository
-
-$ airshipctl document pull
-
-This step will clone the airshipctl repository in `/tmp/airship`.
-This is because the targetPath for `docker_manifest` in airship configuration file is  `/tmp/airship`
-
-## Use the latest patchset for docker
+## Use the latest patchset
 
 Go to `https://review.opendev.org/#/c/737871`
 
@@ -227,96 +177,63 @@ Right click on `tar`, and copy the link address
 
 Run the following commands to download and extract the latest patchset
 
+`$ mkdir -p /tmp/airship/airshipctl`
+
 `$ export PATCH_URL=<paste_link_address_here>`
 
 `$ wget ${PATCH_URL} -O /tmp/airship/airshipctl/manifests.tar`
 
 `$ cd /tmp/airship/airshipctl && tar xvf manifests.tar`
 
-## Docker Overrides - Generate Metadata for infrastructure  provider docker
-
-The script reads from the local repository `airshipctl/manifests/function/capd/v0.3.0` of the docker provider and builds the providers’ assets, and places them in a local override directory located under `$HOME/.cluster-api/overrides/`
-
-For more information on docker overrides, refer to the [Docker Overrides](#local-overrides-for-docker) in reference section of the document.
-
-To execute the docker overrides hack, go to the root directory of the docker provider
-
-$ cd /tmp/airship/airshipctl/manifests/function/capd
-
-Run docker-overrides.py
-
-$ ./docker-overrides.py
-
-```
-airshipctl local overrides generated from the local repository for docker provider airshipctl/manifests/function/capd/v0.3.0
-in order to use them, please run:
-
-airshipctl cluster init --debug
-```
-
-This would create the metadata required in `$HOME/.cluster-api/overrides/`
-
-`$ tree  ~/.cluster-api`
-
-```
-~/.cluster-api
-└── overrides
-    └── infrastructure-docker
-        └── v0.3.0
-            ├── infrastructure-components.yaml
-            └── metadata.yaml
-
-3 directories, 2 files
-```
-
 ## Initialize the management cluster
 
 $ airshipctl cluster init --debug
 
 ```
-[airshipctl] 2020/07/10 01:49:00 Starting cluster-api initiation
+[airshipctl] 2020/08/12 14:08:23 Starting cluster-api initiation
 Installing the clusterctl inventory CRD
 Creating CustomResourceDefinition="providers.clusterctl.cluster.x-k8s.io"
 Fetching providers
-[airshipctl] 2020/07/10 01:49:00 Creating arishipctl repository implementation interface for provider cluster-api of type CoreProvider
-[airshipctl] 2020/07/10 01:49:00 Setting up airshipctl provider Components client
+[airshipctl] 2020/08/12 14:08:23 Creating arishipctl repository implementation interface for provider cluster-api of type CoreProvider
+[airshipctl] 2020/08/12 14:08:23 Setting up airshipctl provider Components client
 Provider type: CoreProvider, name: cluster-api
-[airshipctl] 2020/07/10 01:49:00 Getting airshipctl provider components, setting skipping variable substitution.
+[airshipctl] 2020/08/12 14:08:23 Getting airshipctl provider components, skipping variable substitution: true.
 Provider type: CoreProvider, name: cluster-api
 Fetching File="components.yaml" Provider="cluster-api" Version="v0.3.3"
-[airshipctl] 2020/07/10 01:49:00 Building cluster-api provider component documents from kustomize path at /tmp/airship/airshipctl/manifests/function/capi/v0.3.3
-[airshipctl] 2020/07/10 01:49:00 Creating arishipctl repository implementation interface for provider kubeadm of type BootstrapProvider
-[airshipctl] 2020/07/10 01:49:00 Setting up airshipctl provider Components client
+[airshipctl] 2020/08/12 14:08:23 Building cluster-api provider component documents from kustomize path at /tmp/airship/airshipctl/manifests/function/capi/v0.3.3
+[airshipctl] 2020/08/12 14:08:24 Creating arishipctl repository implementation interface for provider kubeadm of type BootstrapProvider
+[airshipctl] 2020/08/12 14:08:24 Setting up airshipctl provider Components client
 Provider type: BootstrapProvider, name: kubeadm
-[airshipctl] 2020/07/10 01:49:00 Getting airshipctl provider components, setting skipping variable substitution.
+[airshipctl] 2020/08/12 14:08:24 Getting airshipctl provider components, skipping variable substitution: true.
 Provider type: BootstrapProvider, name: kubeadm
 Fetching File="components.yaml" Provider="bootstrap-kubeadm" Version="v0.3.3"
-[airshipctl] 2020/07/10 01:49:00 Building cluster-api provider component documents from kustomize path at /tmp/airship/airshipctl/manifests/function/cabpk/v0.3.3
-[airshipctl] 2020/07/10 01:49:01 Creating arishipctl repository implementation interface for provider kubeadm of type ControlPlaneProvider
-[airshipctl] 2020/07/10 01:49:01 Setting up airshipctl provider Components client
+[airshipctl] 2020/08/12 14:08:24 Building cluster-api provider component documents from kustomize path at /tmp/airship/airshipctl/manifests/function/cabpk/v0.3.3
+[airshipctl] 2020/08/12 14:08:24 Creating arishipctl repository implementation interface for provider kubeadm of type ControlPlaneProvider
+[airshipctl] 2020/08/12 14:08:24 Setting up airshipctl provider Components client
 Provider type: ControlPlaneProvider, name: kubeadm
-[airshipctl] 2020/07/10 01:49:01 Getting airshipctl provider components, setting skipping variable substitution.
+[airshipctl] 2020/08/12 14:08:24 Getting airshipctl provider components, skipping variable substitution: true.
 Provider type: ControlPlaneProvider, name: kubeadm
 Fetching File="components.yaml" Provider="control-plane-kubeadm" Version="v0.3.3"
-[airshipctl] 2020/07/10 01:49:01 Building cluster-api provider component documents from kustomize path at /tmp/airship/airshipctl/manifests/function/cacpk/v0.3.3
-[airshipctl] 2020/07/10 01:49:01 Creating arishipctl repository implementation interface for provider docker of type InfrastructureProvider
-[airshipctl] 2020/07/10 01:49:01 Setting up airshipctl provider Components client
+[airshipctl] 2020/08/12 14:08:24 Building cluster-api provider component documents from kustomize path at /tmp/airship/airshipctl/manifests/function/cacpk/v0.3.3
+[airshipctl] 2020/08/12 14:08:24 Creating arishipctl repository implementation interface for provider docker of type InfrastructureProvider
+[airshipctl] 2020/08/12 14:08:24 Setting up airshipctl provider Components client
 Provider type: InfrastructureProvider, name: docker
-[airshipctl] 2020/07/10 01:49:01 Getting airshipctl provider components, setting skipping variable substitution.
+[airshipctl] 2020/08/12 14:08:24 Getting airshipctl provider components, skipping variable substitution: true.
 Provider type: InfrastructureProvider, name: docker
-Fetching File="components.yaml" Provider="infrastructure-docker" Version="v0.3.0"
-[airshipctl] 2020/07/10 01:49:01 Building cluster-api provider component documents from kustomize path at /tmp/airship/airshipctl/manifests/function/capd/v0.3.0
-[airshipctl] 2020/07/10 01:49:01 Creating arishipctl repository implementation interface for provider cluster-api of type CoreProvider
+Fetching File="components.yaml" Provider="infrastructure-docker" Version="v0.3.7"
+[airshipctl] 2020/08/12 14:08:24 Building cluster-api provider component documents from kustomize path at /tmp/airship/airshipctl/manifests/function/capd/v0.3.7
+[airshipctl] 2020/08/12 14:08:24 Creating arishipctl repository implementation interface for provider cluster-api of type CoreProvider
 Fetching File="metadata.yaml" Provider="cluster-api" Version="v0.3.3"
-[airshipctl] 2020/07/10 01:49:01 Building cluster-api provider component documents from kustomize path at /tmp/airship/airshipctl/manifests/function/capi/v0.3.3
-[airshipctl] 2020/07/10 01:49:01 Creating arishipctl repository implementation interface for provider kubeadm of type BootstrapProvider
+[airshipctl] 2020/08/12 14:08:24 Building cluster-api provider component documents from kustomize path at /tmp/airship/airshipctl/manifests/function/capi/v0.3.3
+[airshipctl] 2020/08/12 14:08:25 Creating arishipctl repository implementation interface for provider kubeadm of type BootstrapProvider
 Fetching File="metadata.yaml" Provider="bootstrap-kubeadm" Version="v0.3.3"
-[airshipctl] 2020/07/10 01:49:01 Building cluster-api provider component documents from kustomize path at /tmp/airship/airshipctl/manifests/function/cabpk/v0.3.3
-[airshipctl] 2020/07/10 01:49:01 Creating arishipctl repository implementation interface for provider kubeadm of type ControlPlaneProvider
+[airshipctl] 2020/08/12 14:08:25 Building cluster-api provider component documents from kustomize path at /tmp/airship/airshipctl/manifests/function/cabpk/v0.3.3
+[airshipctl] 2020/08/12 14:08:25 Creating arishipctl repository implementation interface for provider kubeadm of type ControlPlaneProvider
 Fetching File="metadata.yaml" Provider="control-plane-kubeadm" Version="v0.3.3"
-[airshipctl] 2020/07/10 01:49:01 Building cluster-api provider component documents from kustomize path at /tmp/airship/airshipctl/manifests/function/cacpk/v0.3.3
-[airshipctl] 2020/07/10 01:49:01 Creating arishipctl repository implementation interface for provider docker of type InfrastructureProvider
-Using Override="metadata.yaml" Provider="infrastructure-docker" Version="v0.3.0"
+[airshipctl] 2020/08/12 14:08:25 Building cluster-api provider component documents from kustomize path at /tmp/airship/airshipctl/manifests/function/cacpk/v0.3.3
+[airshipctl] 2020/08/12 14:08:25 Creating arishipctl repository implementation interface for provider docker of type InfrastructureProvider
+Fetching File="metadata.yaml" Provider="infrastructure-docker" Version="v0.3.7"
+[airshipctl] 2020/08/12 14:08:25 Building cluster-api provider component documents from kustomize path at /tmp/airship/airshipctl/manifests/function/capd/v0.3.7
 Installing cert-manager
 Creating Namespace="cert-manager"
 Creating CustomResourceDefinition="challenges.acme.cert-manager.io"
@@ -427,13 +344,13 @@ Creating ClusterRoleBinding="capi-kubeadm-control-plane-system-capi-kubeadm-cont
 Creating Service="capi-kubeadm-control-plane-controller-manager-metrics-service" Namespace="capi-kubeadm-control-plane-system"
 Creating Deployment="capi-kubeadm-control-plane-controller-manager" Namespace="capi-kubeadm-control-plane-system"
 Creating inventory entry Provider="control-plane-kubeadm" Version="v0.3.3" TargetNamespace="capi-kubeadm-control-plane-system"
-Installing Provider="infrastructure-docker" Version="v0.3.0" TargetNamespace="capd-system"
-Creating shared objects Provider="infrastructure-docker" Version="v0.3.0"
+Installing Provider="infrastructure-docker" Version="v0.3.7" TargetNamespace="capd-system"
+Creating shared objects Provider="infrastructure-docker" Version="v0.3.7"
 Creating CustomResourceDefinition="dockerclusters.infrastructure.cluster.x-k8s.io"
 Creating CustomResourceDefinition="dockermachines.infrastructure.cluster.x-k8s.io"
 Creating CustomResourceDefinition="dockermachinetemplates.infrastructure.cluster.x-k8s.io"
 Creating ValidatingWebhookConfiguration="capd-validating-webhook-configuration"
-Creating instance objects Provider="infrastructure-docker" Version="v0.3.0" TargetNamespace="capd-system"
+Creating instance objects Provider="infrastructure-docker" Version="v0.3.7" TargetNamespace="capd-system"
 Creating Namespace="capd-system"
 Creating Role="capd-leader-election-role" Namespace="capd-system"
 Creating ClusterRole="capd-system-capd-manager-role"
@@ -446,43 +363,42 @@ Creating Service="capd-webhook-service" Namespace="capd-system"
 Creating Deployment="capd-controller-manager" Namespace="capd-system"
 Creating Certificate="capd-serving-cert" Namespace="capd-system"
 Creating Issuer="capd-selfsigned-issuer" Namespace="capd-system"
-Creating inventory entry Provider="infrastructure-docker" Version="v0.3.0" TargetNamespace="capd-system"
+Creating inventory entry Provider="infrastructure-docker" Version="v0.3.7" TargetNamespace="capd-system"
 ```
 
 Wait for all the pods to be up.
 
 $ kubectl get pods -A
-
 ```
 NAMESPACE                           NAME                                                             READY   STATUS    RESTARTS   AGE
-capd-system                         capd-controller-manager-75f5d546d7-xz4vm                         2/2     Running   0          82s
-capi-kubeadm-bootstrap-system       capi-kubeadm-bootstrap-controller-manager-5bb9bfdc46-n7dbk       2/2     Running   0          88s
-capi-kubeadm-control-plane-system   capi-kubeadm-control-plane-controller-manager-77466c7666-8fbw6   2/2     Running   0          85s
-capi-system                         capi-controller-manager-5798474d9f-jzkrk                         2/2     Running   0          90s
-capi-webhook-system                 capi-controller-manager-5d64dd9dfb-cqndz                         2/2     Running   0          91s
-capi-webhook-system                 capi-kubeadm-bootstrap-controller-manager-7c78fff45-h9rkl        2/2     Running   0          89s
-capi-webhook-system                 capi-kubeadm-control-plane-controller-manager-58465bb88f-7w22w   2/2     Running   0          87s
-cert-manager                        cert-manager-69b4f77ffc-wtxzz                                    1/1     Running   0          2m1s
-cert-manager                        cert-manager-cainjector-576978ffc8-5lchc                         1/1     Running   0          2m1s
-cert-manager                        cert-manager-webhook-c67fbc858-tdzgt                             1/1     Running   2          2m1s
-kube-system                         coredns-6955765f44-76mqd                                         1/1     Running   0          12m
-kube-system                         coredns-6955765f44-jd62f                                         1/1     Running   0          12m
-kube-system                         etcd-capi-docker-control-plane                                   1/1     Running   0          12m
-kube-system                         kindnet-8q2jz                                                    1/1     Running   0          12m
-kube-system                         kube-apiserver-capi-docker-control-plane                         1/1     Running   0          12m
-kube-system                         kube-controller-manager-capi-docker-control-plane                1/1     Running   0          12m
-kube-system                         kube-proxy-wp4lz                                                 1/1     Running   0          12m
-kube-system                         kube-scheduler-capi-docker-control-plane                         1/1     Running   0          12m
-local-path-storage                  local-path-provisioner-7745554f7f-wpfrv                          1/1     Running   0          12m
+capd-system                         capd-controller-manager-75f5d546d7-frrm5                         2/2     Running   0          77s
+capi-kubeadm-bootstrap-system       capi-kubeadm-bootstrap-controller-manager-5bb9bfdc46-mhbqz       2/2     Running   0          85s
+capi-kubeadm-control-plane-system   capi-kubeadm-control-plane-controller-manager-77466c7666-t69m5   2/2     Running   0          81s
+capi-system                         capi-controller-manager-5798474d9f-tp2c2                         2/2     Running   0          89s
+capi-webhook-system                 capi-controller-manager-5d64dd9dfb-r6mb2                         2/2     Running   1          91s
+capi-webhook-system                 capi-kubeadm-bootstrap-controller-manager-7c78fff45-dmnlc        2/2     Running   0          88s
+capi-webhook-system                 capi-kubeadm-control-plane-controller-manager-58465bb88f-c6j5q   2/2     Running   0          84s
+cert-manager                        cert-manager-69b4f77ffc-8vchm                                    1/1     Running   0          117s
+cert-manager                        cert-manager-cainjector-576978ffc8-frsxg                         1/1     Running   0          117s
+cert-manager                        cert-manager-webhook-c67fbc858-qxrcj                             1/1     Running   1          117s
+kube-system                         coredns-6955765f44-f28p7                                         1/1     Running   0          3m12s
+kube-system                         coredns-6955765f44-nq5qk                                         1/1     Running   0          3m12s
+kube-system                         etcd-capi-docker-control-plane                                   1/1     Running   0          3m25s
+kube-system                         kindnet-nxm6k                                                    1/1     Running   0          3m12s
+kube-system                         kube-apiserver-capi-docker-control-plane                         1/1     Running   0          3m25s
+kube-system                         kube-controller-manager-capi-docker-control-plane                1/1     Running   0          3m25s
+kube-system                         kube-proxy-5jmc5                                                 1/1     Running   0          3m12s
+kube-system                         kube-scheduler-capi-docker-control-plane                         1/1     Running   0          3m25s
+local-path-storage                  local-path-provisioner-7745554f7f-ms989                          1/1     Running   0          3m12s
 ```
-
-Now, the management cluster is initialized with cluster api and cluster api docker provider components.
+Now, the management cluster is initialized with cluster api and cluster api
+docker provider components.
 
 $ kubectl get providers -A
 
 ```
 NAMESPACE                           NAME                    TYPE   PROVIDER                 VERSION   WATCH NAMESPACE
-capd-system                         infrastructure-docker          InfrastructureProvider   v0.3.0
+capd-system                         infrastructure-docker          InfrastructureProvider   v0.3.7
 capi-kubeadm-bootstrap-system       bootstrap-kubeadm              BootstrapProvider        v0.3.3
 capi-kubeadm-control-plane-system   control-plane-kubeadm          ControlPlaneProvider     v0.3.3
 capi-system                         cluster-api                    CoreProvider             v0.3.3
@@ -492,134 +408,177 @@ $ docker ps
 
 ```
 CONTAINER ID        IMAGE                          COMMAND                  CREATED             STATUS              PORTS                                  NAMES
-b9690cecdcf2        kindest/node:v1.17.0           "/usr/local/bin/entr…"   14 minutes ago      Up 14 minutes       127.0.0.1:32773->6443/tcp              capi-docker-control-plane
+b9690cecdcf2        kindest/node:v1.18.2           "/usr/local/bin/entr…"   14 minutes ago      Up 14 minutes       127.0.0.1:32773->6443/tcp              capi-docker-control-plane
 ```
 
 
 ## Create your first workload cluster
 
-`airshipctl phase apply docker` uses the manifests  available in `airshipctl/manifests/site/docker-test-site/target` to
-create a workload cluster.  In the current patchset, manifests are configured to deploy 1 machine deployment and 1 control plane. The target cluster kubernetes version is v1.17.0
-
-The spec for `kubeadmcontrolplane` in the target workload cluster manifest, deploys calico as the CNI solution using the postkubeadm command `kubectl --kubeconfig /etc/kubernetes/admin.conf apply -f https://docs.projectcalico.org/v3.12/manifests/calico.yaml`
-
-Manifests used by airshipctl for creating the target workload cluster can be found  in the section [target workload cluster](#target-workload-cluster)
-
-$ airshipctl phase apply docker
+$ airshipctl phase apply controlplane --debug
 
 ```
-kubeadmconfigtemplate.bootstrap.cluster.x-k8s.io/dtc-md-0 created
+[airshipctl] 2020/08/12 14:10:12 building bundle from kustomize path /tmp/airship/airshipctl/manifests/site/docker-test-site/target/controlplane
+[airshipctl] 2020/08/12 14:10:12 Applying bundle, inventory id: kind-capi-docker-target-controlplane
+[airshipctl] 2020/08/12 14:10:12 Inventory Object config Map not found, auto generating Invetory object
+[airshipctl] 2020/08/12 14:10:12 Injecting Invetory Object: {"apiVersion":"v1","kind":"ConfigMap","metadata":{"creationTimestamp":null,"labels":{"cli-utils.sigs.k8s.io/inventory-id":"kind-capi-docker-target-controlplane"},"name":"airshipit-kind-capi-docker-target-controlplane","namespace":"airshipit"}}{nsfx:false,beh:unspecified} into bundle
+[airshipctl] 2020/08/12 14:10:12 Making sure that inventory object namespace airshipit exists
+configmap/airshipit-kind-capi-docker-target-controlplane-87efb53a created
 cluster.cluster.x-k8s.io/dtc created
-machinedeployment.cluster.x-k8s.io/dtc-md-0 created
 machinehealthcheck.cluster.x-k8s.io/dtc-mhc-0 created
 kubeadmcontrolplane.controlplane.cluster.x-k8s.io/dtc-control-plane created
 dockercluster.infrastructure.cluster.x-k8s.io/dtc created
 dockermachinetemplate.infrastructure.cluster.x-k8s.io/dtc-control-plane created
-dockermachinetemplate.infrastructure.cluster.x-k8s.io/dtc-md-0 created
-```
-
-$ docker ps
-
-```
-CONTAINER ID        IMAGE                          COMMAND                  CREATED             STATUS              PORTS                                  NAMES
-f8f4a6bf14f6        kindest/node:v1.17.0           "/usr/local/bin/entr…"   2 minutes ago       Up 2 minutes                                               dtc-dtc-md-0-94c79cf9c-fvk2s
-73d711354f6a        kindest/node:v1.17.0           "/usr/local/bin/entr…"   3 minutes ago       Up 2 minutes        45915/tcp, 127.0.0.1:45915->6443/tcp   dtc-dtc-control-plane-4dmv9
-c8897b37a3c9        kindest/haproxy:2.1.1-alpine   "/docker-entrypoint.…"   3 minutes ago       Up 3 minutes        38901/tcp, 0.0.0.0:38901->6443/tcp     dtc-lb
-b9690cecdcf2        kindest/node:v1.17.0           "/usr/local/bin/entr…"   17 minutes ago      Up 17 minutes       127.0.0.1:32773->6443/tcp              capi-docker-control-plane
+6 resource(s) applied. 6 created, 0 unchanged, 0 configured
+machinehealthcheck.cluster.x-k8s.io/dtc-mhc-0 is NotFound: Resource not found
+kubeadmcontrolplane.controlplane.cluster.x-k8s.io/dtc-control-plane is NotFound: Resource not found
+dockercluster.infrastructure.cluster.x-k8s.io/dtc is NotFound: Resource not found
+dockermachinetemplate.infrastructure.cluster.x-k8s.io/dtc-control-plane is NotFound: Resource not found
+configmap/airshipit-kind-capi-docker-target-controlplane-87efb53a is NotFound: Resource not found
+cluster.cluster.x-k8s.io/dtc is NotFound: Resource not found
+configmap/airshipit-kind-capi-docker-target-controlplane-87efb53a is Current: Resource is always ready
+cluster.cluster.x-k8s.io/dtc is Current: Resource is current
+machinehealthcheck.cluster.x-k8s.io/dtc-mhc-0 is Current: Resource is current
+kubeadmcontrolplane.controlplane.cluster.x-k8s.io/dtc-control-plane is Current: Resource is current
+dockercluster.infrastructure.cluster.x-k8s.io/dtc is Current: Resource is current
+dockermachinetemplate.infrastructure.cluster.x-k8s.io/dtc-control-plane is Current: Resource is current
+all resources has reached the Current status
 ```
 
 $ kubectl get pods -A
 ```
 NAMESPACE                           NAME                                                             READY   STATUS    RESTARTS   AGE
-capd-system                         capd-controller-manager-75f5d546d7-xz4vm                         2/2     Running   0          7m8s
-capi-kubeadm-bootstrap-system       capi-kubeadm-bootstrap-controller-manager-5bb9bfdc46-n7dbk       2/2     Running   0          7m14s
-capi-kubeadm-control-plane-system   capi-kubeadm-control-plane-controller-manager-77466c7666-8fbw6   2/2     Running   0          7m11s
-capi-system                         capi-controller-manager-5798474d9f-jzkrk                         2/2     Running   0          7m16s
-capi-webhook-system                 capi-controller-manager-5d64dd9dfb-cqndz                         2/2     Running   0          7m17s
-capi-webhook-system                 capi-kubeadm-bootstrap-controller-manager-7c78fff45-h9rkl        2/2     Running   0          7m15s
-capi-webhook-system                 capi-kubeadm-control-plane-controller-manager-58465bb88f-7w22w   2/2     Running   0          7m13s
-cert-manager                        cert-manager-69b4f77ffc-wtxzz                                    1/1     Running   0          7m47s
-cert-manager                        cert-manager-cainjector-576978ffc8-5lchc                         1/1     Running   0          7m47s
-cert-manager                        cert-manager-webhook-c67fbc858-tdzgt                             1/1     Running   2          7m47s
-kube-system                         coredns-6955765f44-76mqd                                         1/1     Running   0          18m
-kube-system                         coredns-6955765f44-jd62f                                         1/1     Running   0          18m
-kube-system                         etcd-capi-docker-control-plane                                   1/1     Running   0          18m
-kube-system                         kindnet-8q2jz                                                    1/1     Running   0          18m
-kube-system                         kube-apiserver-capi-docker-control-plane                         1/1     Running   0          18m
-kube-system                         kube-controller-manager-capi-docker-control-plane                1/1     Running   0          18m
-kube-system                         kube-proxy-wp4lz                                                 1/1     Running   0          18m
-kube-system                         kube-scheduler-capi-docker-control-plane                         1/1     Running   0          18m
-local-path-storage                  local-path-provisioner-7745554f7f-wpfrv                          1/1     Running   0          18m
+capd-system                         capd-controller-manager-75f5d546d7-frrm5                         2/2     Running   0          77s
+capi-kubeadm-bootstrap-system       capi-kubeadm-bootstrap-controller-manager-5bb9bfdc46-mhbqz       2/2     Running   0          85s
+capi-kubeadm-control-plane-system   capi-kubeadm-control-plane-controller-manager-77466c7666-t69m5   2/2     Running   0          81s
+capi-system                         capi-controller-manager-5798474d9f-tp2c2                         2/2     Running   0          89s
+capi-webhook-system                 capi-controller-manager-5d64dd9dfb-r6mb2                         2/2     Running   1          91s
+capi-webhook-system                 capi-kubeadm-bootstrap-controller-manager-7c78fff45-dmnlc        2/2     Running   0          88s
+capi-webhook-system                 capi-kubeadm-control-plane-controller-manager-58465bb88f-c6j5q   2/2     Running   0          84s
+cert-manager                        cert-manager-69b4f77ffc-8vchm                                    1/1     Running   0          117s
+cert-manager                        cert-manager-cainjector-576978ffc8-frsxg                         1/1     Running   0          117s
+cert-manager                        cert-manager-webhook-c67fbc858-qxrcj                             1/1     Running   1          117s
+kube-system                         coredns-6955765f44-f28p7                                         1/1     Running   0          3m12s
+kube-system                         coredns-6955765f44-nq5qk                                         1/1     Running   0          3m12s
+kube-system                         etcd-capi-docker-control-plane                                   1/1     Running   0          3m25s
+kube-system                         kindnet-nxm6k                                                    1/1     Running   0          3m12s
+kube-system                         kube-apiserver-capi-docker-control-plane                         1/1     Running   0          3m25s
+kube-system                         kube-controller-manager-capi-docker-control-plane                1/1     Running   0          3m25s
+kube-system                         kube-proxy-5jmc5                                                 1/1     Running   0          3m12s
+kube-system                         kube-scheduler-capi-docker-control-plane                         1/1     Running   0          3m25s
+local-path-storage                  local-path-provisioner-7745554f7f-ms989                          1/1     Running   0          3m12s
 ```
 
-Controller logs can be checked using `kubectl logs capd-controller-manager-75f5d546d7-xz4vm  -n capd-system --all-containers=true -f  `
-
-$ kubectl logs capd-controller-manager-75f5d546d7-xz4vm  -n capd-system --all-containers=true -f
-
+$ kubectl logs capd-controller-manager-75f5d546d7-frrm5 -n capd-system
+--all-containers=true -f
 ```
-I0710 08:53:15.083277       1 machine.go:236] controllers/DockerMachine/DockerMachine-controller "msg"="Running machine bootstrap scripts" "cluster"="dtc" "docker-cluster"="dtc" "docker-machine"={"Namespace":"default","Name":"dtc-md-0-54dgs"} "machine"="dtc-md-0-94c79cf9c-fvk2s"
-I0710 08:53:22.100151       1 machine.go:264] controllers/DockerMachine/DockerMachine-controller "msg"="Setting Kubernetes node providerID" "cluster"="dtc" "docker-cluster"="dtc" "docker-machine"={"Namespace":"default","Name":"dtc-md-0-54dgs"} "machine"="dtc-md-0-94c79cf9c-fvk2s"
-I0710 08:53:22.431332       1 generic_predicates.go:162] controllers/DockerMachine "msg"="Resource is not paused, will attempt to map resource" ""="dtc-md-0-54dgs" "namespace"="default" "predicate"="updateEvent"
-I0710 08:53:22.444744       1 generic_predicates.go:162] controllers/DockerMachine "msg"="Resource is not paused, will attempt to map resource" ""="dtc-md-0-54dgs" "namespace"="default" "predicate"="updateEvent"
-I0710 08:53:22.501492       1 generic_predicates.go:162] controllers/DockerMachine "msg"="Resource is not paused, will attempt to map resource" ""="dtc-md-0-54dgs" "namespace"="default" "predicate"="updateEvent"
-I0710 08:53:22.504315       1 controller.go:272] controller-runtime/controller "msg"="Successfully Reconciled" "controller"="dockermachine" "name"="dtc-md-0-54dgs" "namespace"="default"
-I0710 08:53:22.746239       1 generic_predicates.go:162] controllers/DockerMachine "msg"="Resource is not paused, will attempt to map resource" ""="dtc-md-0-94c79cf9c-fvk2s" "namespace"="default" "predicate"="updateEvent"
-I0710 08:53:22.839181       1 generic_predicates.go:162] controllers/DockerMachine "msg"="Resource is not paused, will attempt to map resource" ""="dtc-md-0-94c79cf9c-fvk2s" "namespace"="default" "predicate"="updateEvent"
-I0710 08:53:22.995287       1 controller.go:272] controller-runtime/controller "msg"="Successfully Reconciled" "controller"="dockermachine" "name"="dtc-md-0-54dgs" "namespace"="default"
-I0710 08:53:23.125303       1 controller.go:272] controller-runtime/controller "msg"="Successfully Reconciled" "controller"="dockermachine" "name"="dtc-md-0-54dgs" "namespace"="default"
-I0710 08:55:11.020648       1 reflector.go:419] pkg/mod/k8s.io/client-go@v0.17.7/tools/cache/reflector.go:105: Watch close - *v1alpha3.DockerCluster total 7 items received
-I0710 08:55:43.123211       1 reflector.go:419] pkg/mod/k8s.io/client-go@v0.17.7/tools/cache/reflector.go:105: Watch close - *v1alpha3.Machine total 15 items received
-I0710 08:56:09.014590       1 reflector.go:419] pkg/mod/k8s.io/client-go@v0.17.7/tools/cache/reflector.go:105: Watch close - *v1alpha3.DockerMachine total 19 items received
+I0812 21:11:24.761608       1 controller.go:272] controller-runtime/controller "msg"="Successfully Reconciled" "controller"="dockermachine" "name"="dtc-control-plane-zc5bw" "namespace"="default"
+I0812 21:11:25.189401       1 controller.go:272] controller-runtime/controller "msg"="Successfully Reconciled" "controller"="dockermachine" "name"="dtc-control-plane-zc5bw" "namespace"="default"
+I0812 21:11:26.219320       1 generic_predicates.go:38] controllers/DockerMachine "msg"="One of the provided predicates returned false, blocking further processing" "predicate"="ClusterUnpausedAndInfrastructureReady" "predicateAggregation"="All"
+I0812 21:11:26.219774       1 cluster_predicates.go:143] controllers/DockerMachine "msg"="Cluster was not unpaused, blocking further processing" "cluster"="dtc" "eventType"="update" "namespace"="default" "predicate"="ClusterUpdateUnpaused"
+I0812 21:11:26.222004       1 cluster_predicates.go:111] controllers/DockerMachine "msg"="Cluster infrastructure did not become ready, blocking further processing" "cluster"="dtc" "eventType"="update" "namespace"="default" "predicate"="ClusterUpdateInfraReady"
+I0812 21:11:26.223003       1 generic_predicates.go:89] controllers/DockerMachine "msg"="All of the provided predicates returned false, blocking further processing" "predicate"="ClusterUnpausedAndInfrastructureReady" "predicateAggregation"="Any"
+I0812 21:11:26.223239       1 generic_predicates.go:89] controllers/DockerMachine "msg"="All of the provided predicates returned false, blocking further processing" "predicate"="ClusterUnpausedAndInfrastructureReady" "predicateAggregation"="Any"
+I0812 21:11:26.219658       1 cluster_predicates.go:143] controllers/DockerCluster "msg"="Cluster was not unpaused, blocking further processing" "cluster"="dtc" "eventType"="update" "namespace"="default" "predicate"="ClusterUpdateUnpaused"
+I0812 21:11:26.229665       1 generic_predicates.go:89] controllers/DockerCluster "msg"="All of the provided predicates returned false, blocking further processing" "predicate"="ClusterUnpaused" "predicateAggregation"="Any"
 ```
 
 $ kubectl get machines
+```
+NAME                      PROVIDERID                               PHASE
+dtc-control-plane-p4fsx   docker:////dtc-dtc-control-plane-p4fsx   Running
+```
 
+$ airshipctl phase apply workers --debug
+
+```
+[airshipctl] 2020/08/12 14:11:55 building bundle from kustomize path /tmp/airship/airshipctl/manifests/site/docker-test-site/target/worker
+[airshipctl] 2020/08/12 14:11:55 Applying bundle, inventory id: kind-capi-docker-target-worker
+[airshipctl] 2020/08/12 14:11:55 Inventory Object config Map not found, auto generating Invetory object
+[airshipctl] 2020/08/12 14:11:55 Injecting Invetory Object: {"apiVersion":"v1","kind":"ConfigMap","metadata":{"creationTimestamp":null,"labels":{"cli-utils.sigs.k8s.io/inventory-id":"kind-capi-docker-target-worker"},"name":"airshipit-kind-capi-docker-target-worker","namespace":"airshipit"}}{nsfx:false,beh:unspecified} into bundle
+[airshipctl] 2020/08/12 14:11:55 Making sure that inventory object namespace airshipit exists
+configmap/airshipit-kind-capi-docker-target-worker-b56f83 created
+kubeadmconfigtemplate.bootstrap.cluster.x-k8s.io/dtc-md-0 created
+machinedeployment.cluster.x-k8s.io/dtc-md-0 created
+dockermachinetemplate.infrastructure.cluster.x-k8s.io/dtc-md-0 created
+4 resource(s) applied. 4 created, 0 unchanged, 0 configured
+dockermachinetemplate.infrastructure.cluster.x-k8s.io/dtc-md-0 is NotFound: Resource not found
+configmap/airshipit-kind-capi-docker-target-worker-b56f83 is NotFound: Resource not found
+kubeadmconfigtemplate.bootstrap.cluster.x-k8s.io/dtc-md-0 is NotFound: Resource not found
+machinedeployment.cluster.x-k8s.io/dtc-md-0 is NotFound: Resource not found
+configmap/airshipit-kind-capi-docker-target-worker-b56f83 is Current: Resource is always ready
+kubeadmconfigtemplate.bootstrap.cluster.x-k8s.io/dtc-md-0 is Current: Resource is current
+machinedeployment.cluster.x-k8s.io/dtc-md-0 is Current: Resource is current
+dockermachinetemplate.infrastructure.cluster.x-k8s.io/dtc-md-0 is Current: Resource is current
+```
+
+$ kubectl get machines
+```
+NAME                       PROVIDERID                               PHASE
+dtc-control-plane-p4fsx    docker:////dtc-dtc-control-plane-p4fsx   Running
+dtc-md-0-94c79cf9c-8ct2g                                            Provisioning
+```
+
+$ kubectl logs capd-controller-manager-75f5d546d7-frrm5 -n capd-system
+--all-containers=true -f
+```
+I0812 21:10:14.071166       1 cluster_predicates.go:111] controllers/DockerMachine "msg"="Cluster infrastructure did not become ready, blocking further processing" "cluster"="dtc" "eventType"="update" "namespace"="default" "predicate"="ClusterUpdateInfraReady"
+I0812 21:10:14.071204       1 generic_predicates.go:89] controllers/DockerMachine "msg"="All of the provided predicates returned false, blocking further processing" "predicate"="ClusterUnpausedAndInfrastructureReady" "predicateAggregation"="Any"
+I0812 21:10:14.071325       1 generic_predicates.go:89] controllers/DockerMachine "msg"="All of the provided predicates returned false, blocking further processing" "predicate"="ClusterUnpausedAndInfrastructureReady" "predicateAggregation"="Any"
+I0812 21:10:14.082937       1 generic_predicates.go:38] controllers/DockerMachine "msg"="One of the provided predicates returned false, blocking further processing" "predicate"="ClusterUnpausedAndInfrastructureReady" "predicateAggregation"="All"
+I0812 21:10:14.082981       1 cluster_predicates.go:143] controllers/DockerMachine "msg"="Cluster was not unpaused, blocking further processing" "cluster"="dtc" "eventType"="update" "namespace"="default" "predicate"="ClusterUpdateUnpaused"
+I0812 21:10:14.082994       1 cluster_predicates.go:143] controllers/DockerCluster "msg"="Cluster was not unpaused, blocking further processing" "cluster"="dtc" "eventType"="update" "namespace"="default" "predicate"="ClusterUpdateUnpaused"
+I0812 21:10:14.083012       1 cluster_predicates.go:111] controllers/DockerMachine "msg"="Cluster infrastructure did not become ready, blocking further processing" "cluster"="dtc" "eventType"="update" "namespace"="default" "predicate"="ClusterUpdateInfraReady"
+I0812 21:10:14.083024       1 generic_predicates.go:89] controllers/DockerCluster "msg"="All of the provided predicates returned false, blocking further processing" "predicate"="ClusterUnpaused" "predicateAggregation"="Any"
+I0812 21:10:14.083036       1 generic_predicates.go:89] controllers/DockerMachine "msg"="All of the provided predicates returned false, blocking further processing"
+```
+$ kubectl get machines
 ```
 NAME                       PROVIDERID                                PHASE
-dtc-control-plane-4dmv9    docker:////dtc-dtc-control-plane-4dmv9    Running
-dtc-md-0-94c79cf9c-fvk2s   docker:////dtc-dtc-md-0-94c79cf9c-fvk2s   Running
+dtc-control-plane-p4fsx    docker:////dtc-dtc-control-plane-p4fsx    Running
+dtc-md-0-94c79cf9c-8ct2g   docker:////dtc-dtc-md-0-94c79cf9c-8ct2g   Running
 ```
 
-$ kubectl --namespace=default get secret/dtc-kubeconfig -o jsonpath={.data.value} | base64 --decode > ./dtc.kubeconfig
+$ kubectl --namespace=default get secret/dtc-kubeconfig -o
+jsonpath={.data.value} | base64 --decode > ./dtc.kubeconfig
 
 $ kubectl get nodes --kubeconfig dtc.kubeconfig
 
 ```
 NAME                           STATUS   ROLES    AGE     VERSION
-dtc-dtc-control-plane-4dmv9    Ready    master   8m      v1.17.0
-dtc-dtc-md-0-94c79cf9c-fvk2s   Ready    <none>   7m31s   v1.17.0
+dtc-dtc-control-plane-p4fsx    Ready    master   5m45s   v1.17.0
+dtc-dtc-md-0-94c79cf9c-8ct2g   Ready    <none>   4m45s   v1.17.0
 ```
 
-$ kubectl get pods -A  --kubeconfig dtc.kubeconfig
-
+$ kubectl get pods -A --kubeconfig dtc.kubeconfig
 ```
 NAMESPACE     NAME                                                  READY   STATUS    RESTARTS   AGE
-kube-system   calico-kube-controllers-65c8dd596b-sdwf9              1/1     Running   0          11m
-kube-system   calico-node-v86l5                                     1/1     Running   0          11m
-kube-system   calico-node-ztm5l                                     1/1     Running   0          11m
-kube-system   coredns-6955765f44-b7hwk                              1/1     Running   0          11m
-kube-system   coredns-6955765f44-bbhzp                              1/1     Running   0          11m
-kube-system   etcd-dtc-dtc-control-plane-4dmv9                      1/1     Running   0          11m
-kube-system   kube-apiserver-dtc-dtc-control-plane-4dmv9            1/1     Running   0          11m
-kube-system   kube-controller-manager-dtc-dtc-control-plane-4dmv9   1/1     Running   0          11m
-kube-system   kube-proxy-7vvn5                                      1/1     Running   0          11m
-kube-system   kube-proxy-jb8kk                                      1/1     Running   0          11m
-kube-system   kube-scheduler-dtc-dtc-control-plane-4dmv9            1/1     Running   0          11m
+kube-system   calico-kube-controllers-59b699859f-xp8dv              1/1     Running   0          5m40s
+kube-system   calico-node-5drwf                                     1/1     Running   0          5m39s
+kube-system   calico-node-bqw5j                                     1/1     Running   0          4m53s
+kube-system   coredns-6955765f44-8kg27                              1/1     Running   0          5m40s
+kube-system   coredns-6955765f44-lqzzq                              1/1     Running   0          5m40s
+kube-system   etcd-dtc-dtc-control-plane-p4fsx                      1/1     Running   0          5m49s
+kube-system   kube-apiserver-dtc-dtc-control-plane-p4fsx            1/1     Running   0          5m49s
+kube-system   kube-controller-manager-dtc-dtc-control-plane-p4fsx   1/1     Running   0          5m49s
+kube-system   kube-proxy-cjcls                                      1/1     Running   0          5m39s
+kube-system   kube-proxy-fkvpc                                      1/1     Running   0          4m53s
+kube-system   kube-scheduler-dtc-dtc-control-plane-p4fsx            1/1     Running   0          5m49s
 ```
 
 ## Reference
 
-### Cluster Api Docker Provider Manifests
+### Provider Manifests
 
-Manifests for cluster api docker provider - capd, are available under `airshipctl/manifests/function/capd`
+Provider Configuration is referenced from
+[config](https://github.com/kubernetes-sigs/cluster-api/tree/master/test/infrastructure/docker/config)
+Cluster API does not support docker out of the box. Therefore, the metadata
+infromation is added using files in `airshipctl/manifests/function/capd/data`
 
-`$ tree airshipctl/manifests/function/capd`
+$ tree airshipctl/manifests/function/capd
 
 ```
-manifests/function/capd
-├── clusterctl-settings.json
-├── docker-overrides.py
-└── v0.3.0
+airshipctl/manifests/function/capd
+└── v0.3.7
     ├── certmanager
     │   ├── certificate.yaml
     │   ├── kustomization.yaml
@@ -636,6 +595,9 @@ manifests/function/capd
     │       ├── cainjection_in_dockermachines.yaml
     │       ├── webhook_in_dockerclusters.yaml
     │       └── webhook_in_dockermachines.yaml
+    ├── data
+    │   ├── kustomization.yaml
+    │   └── metadata.yaml
     ├── default
     │   ├── kustomization.yaml
     │   └── namespace.yaml
@@ -664,471 +626,141 @@ manifests/function/capd
         ├── service.yaml
         └── webhookcainjection_patch.yaml
 
-9 directories, 37 files
+10 directories, 37 files
 ```
 
-The root directory for cluster api docker provider is airshipctl/manifests/function/capd.
+### Cluster Templates
 
-`v0.3.0` contains the content of the config directory referenced from  https://github.com/kubernetes-sigs/cluster-api/tree/master/test/infrastructure/docker/config
+`manifests/function/k8scontrol-capd` contains target cluster templates
+referenced from
+[cluster-template](https://github.com/kubernetes-sigs/cluster-api/blob/master/test/e2e/data/infrastructure-docker/cluster-template.yaml)
 
-### Local Overrides For Docker
+The template is  broken down into cluster.yaml, controlplane.yaml, worker.yaml
 
-Generally,  all cluster api provider repositories  provide metadata.yaml, and infrastrucuture-components.yaml. The metadata.yaml and components.yaml is used at the time of initializing the management cluster with provider components. The metadata is not part of local manifests, and is fetched from the provider repository at runtime, when `airshipctl cluster init` is executed.
-Here is an example of  provider `cluster api` fetching `components.yaml` and `metadata.yaml`
+| Template Name     | CRDs |
+| ----------------- | ---- |
+| cluster.yaml      |   Cluster, DockerCluster   |
+| controlplane.yaml |   KubeadmControlPlane, DockerMachineTemplate, MachineHealthCheck  |
+| worker.yaml       |   KubeadmConfigTemplate, MachineDeployment, DockerMachineTemplate   |
 
-$ airship cluster init --debug
 
-```
-[airshipctl] 2020/07/01 10:48:41 Starting cluster-api initiation
-Installing the clusterctl inventory CRD
-Creating CustomResourceDefinition="providers.clusterctl.cluster.x-k8s.io"
-Fetching providers
-Provider type: CoreProvider, name: cluster-api
-[airshipctl] 2020/07/01 10:48:41 Getting airshipctl provider components, setting skipping variable substitution.
-Provider type: CoreProvider, name: cluster-api
-Fetching File="components.yaml" Provider="cluster-api" Version="v0.3.3"
-Fetching File="metadata.yaml" Provider="cluster-api" Version="v0.3.3"
-```
-
-To get a list of cluster api providers and their repository configurations, run the below command
-
-$ clusterctl config repositories
+$ tree manifests/function/k8scontrol-capd
 
 ```
-NAME          TYPE                     URL
-cluster-api   CoreProvider             https://github.com/kubernetes-sigs/cluster-api/releases/latest/core-components.yaml
-kubeadm       BootstrapProvider        https://github.com/kubernetes-sigs/cluster-api/releases/latest/bootstrap-components.yaml
-kubeadm       ControlPlaneProvider     https://github.com/kubernetes-sigs/cluster-api/releases/latest/control-plane-components.yaml
-aws           InfrastructureProvider   https://github.com/kubernetes-sigs/cluster-api-provider-aws/releases/latest/infrastructure-components.yaml
-azure         InfrastructureProvider   https://github.com/kubernetes-sigs/cluster-api-provider-azure/releases/latest/infrastructure-components.yaml
-metal3        InfrastructureProvider   https://github.com/metal3-io/cluster-api-provider-metal3/releases/latest/infrastructure-components.yaml
-openstack     InfrastructureProvider   https://github.com/kubernetes-sigs/cluster-api-provider-openstack/releases/latest/infrastructure-components.yaml
-vsphere       InfrastructureProvider   https://github.com/kubernetes-sigs/cluster-api-provider-vsphere/releases/latest/infrastructure-components.yaml
+manifests/function/k8scontrol-capd
+├── cluster
+│   ├── cluster.yaml
+│   └── kustomization.yaml
+├── controlplane
+│   ├── controlplane.yaml
+│   └── kustomization.yaml
+├── kustomization.yaml
+└── workers
+    ├── kustomization.yaml
+    └── worker.yaml
+
+3 directories, 7 files
 ```
+### Test Site Manifests
 
-Unlike other infrastructure providers, docker does not have its own publicly available config repository offering the metadata.yaml and infrastrucutre-components.yaml files.
-Therefore, `airshipctl cluster init` fails when  metadata  can't be fetched at runtime.
+#### docker-test-site/shared
 
-$ airshipctl cluster init --debug
+`airshipctl cluster init` uses
+`airshipctl/manifests/site/docker-test-site/shared/clusterctl` to initialize
+management cluster with defined provider components and version.
 
-```
-[airshipctl] 2020/06/29 06:23:35 Starting cluster-api initiation
-[airshipctl] 2020/06/29 06:23:35 Creating arishipctl repository implementation interface for provider cluster-api of type CoreProvider
-[airshipctl] 2020/06/29 06:23:35 Creating arishipctl repository implementation interface for provider kubeadm of type BootstrapProvider
-[airshipctl] 2020/06/29 06:23:35 Creating arishipctl repository implementation interface for provider kubeadm of type ControlPlaneProvider
-[airshipctl] 2020/06/29 06:23:35 Creating arishipctl repository implementation interface for provider docker of type InfrastructureProvider
-[airshipctl] 2020/06/29 06:23:35 Creating arishipctl repository implementation interface for provider cluster-api of type CoreProvider
-[airshipctl] 2020/06/29 06:23:35 Creating arishipctl repository implementation interface for provider kubeadm of type BootstrapProvider
-[airshipctl] 2020/06/29 06:23:36 Creating arishipctl repository implementation interface for provider kubeadm of type ControlPlaneProvider
-[airshipctl] 2020/06/29 06:23:36 Creating arishipctl repository implementation interface for provider docker of type InfrastructureProvider
-failed to read "metadata.yaml" from the repository for provider "infrastructure-docker": document filtered by selector [Group="clusterctl.cluster.x-k8s.io", Version="v1alpha3", Kind="Metadata"] found no documents
-```
-
-The reference implementation for cluster api using docker as infrastructure provider is available as a part of the cluster api code base `https://github.com/kubernetes-sigs/cluster-api/tree/master/test/infrastructure/docker`. It provides a `hack` https://github.com/kubernetes-sigs/cluster-api/blob/master/cmd/clusterctl/hack/local-overrides.py to generate this metadata from cluster api repository.
-
-Similary for `airshipctl`, this metadata can be generated using the `docker-overrides.py` which is similar to `https://github.com/kubernetes-sigs/cluster-api/blob/master/cmd/clusterctl/hack/local-overrides.py`. However, it generates the metadata only for infrastrucure provider component `docker`
-
-`docker-overrides.py` uses `clusterctl-settings.json`  to  read from the local repository `airshipctl/manifests/function/capd/v0.3.0` and generate metatdata for infrastructure provider type `docker`. This metadata is used at the time of initializing the management cluster with docker provider component.
-
-`docker-overrides.py` builds the providers’ assets, and places them in a local override folder located under `$HOME/.cluster-api/overrides/`
-
-`$ cat clusterctl-settings.json`
+`$ tree airshipctl/manifests/site/docker-test-site/shared`
 
 ```
-{
-  "providers": ["infrastructure-docker"],
-  "provider_repos": []
-}
+/tmp/airship/airshipctl/manifests/site/docker-test-site/shared
+└── clusterctl
+    ├── clusterctl.yaml
+    └── kustomization.yaml
+
+1 directory, 2 files
 ```
 
-`$ ./docker-overrides.py`
+#### docker-test-site/target
+
+There are 3 phases currently available in `docker-test-site/target`.
+
+|Phase Name | Purpose |
+|-----------|---------|
+| controlplane     | Patches templates in manifests/function/k8scontrol-capd/cluster and manifests/function/k8scontrol-capd/controlplane |
+| workers          | Patches templates in manifests/function/k8scontrol-capd/workers                                                     |
+| initinfra | Simply calls `docker-test-site/shared/clusterctl` |
+
+Note: `airshipctl cluster init` initializes all the provider components
+including the docker infrastructure provider component. As a result, `airshipctl
+phase apply initinfra` is not used.
+
+At the moment, `phase initinfra` is only present for two reasons:
+- `airshipctl` complains if the phase is not found
+- `validate site docs to pass`
+
+
+#### Patch Merge Strategy
+
+Json patches are applied on templates in `manifests/function/k8scontrol-capd`
+from `docker-test-site/target/controlplane` and
+`docker-test-site/target/workers` when `airshipctl phase apply controlplane` and
+`airshipctl phase apply worker` are executed.
+
+| Patch Directory Name                      | Purpose                                                                          |
+| ------------------------------- | ------------------------------------------------------------------------------------------ |
+| controlplane/patch_cluster      | patches cluster information in template function/k8scontrol-capd/cluster                   |
+| controlplane/patch_controlplane | patches controlplane information in template function/k8scontrol-capd/controlplane         |
+| controlplane/patch_mhc          | patches machine health check information in template function/k8scontrol-capd/controlplane |
+| worker/patch                    | patches worker information in template function/k8scontrol-capd/worker                     |
+
+
+$ tree airshipctl/manifests/site/docker-test-site/target
 
 ```
-airshipctl local overrides generated from the local repository for docker provider airshipctl/manifests/function/capd/v0.3.0
-in order to use them, please run:
+/tmp/airship/airshipctl/manifests/site/docker-test-site/target
+├── controlplane
+│   ├── kustomization.yaml
+│   ├── patch_cluster
+│   │   ├── cluster_name                                 # patches cluster name in `cluster.yaml` for kind cluster and docker cluster
+│   │   │   ├── cluster-patch-name.json
+│   │   │   └── dockercluster-patch-name.json
+│   │   └── cp_name                                      # patches control plane reference in `cluster.yaml`
+│   │       └── cluster-cp-ref.json
+│   ├── patch_controlplane
+│   │   ├── cp_name
+│   │   │   ├── dockermachinetemplate-patch-name.json    # patches `controlplane` name in kind dockermachinetemplate present in controlplane.yaml
+│   │   │   └── kubeadmconfigtemplate-patch-name.json    # patches `controlplane` name in kind kubeadmconfigtemplate present in controlplane.yaml
+│   │   ├── k8s_version.json                             # patches kubernetes version in  controlplane.yaml
+│   │   └── machine_count.json                           # patches replica count for control plane in controlplane.yaml
+│   └── patch_mhc
+│       ├── machinehealthcheck-patch-clustername.json    # patches `cluster name` in  kind machinehealthcheck in controlplane.yaml
+│       └── machinehealthcheck-patch-mhcname.json        # patches `machine health check name` in  kind machinehealthcheck in controlplane.yaml
+├── initinfra
+│   └── kustomization.yaml
+└── workers
+    ├── kustomization.yaml
+    └── patch
+        ├── cluster_name                                 # patches cluster name reference in worker.yaml
+        │   └── md-cluster-ref.json
+        ├── k8s_version.json                             # patches kubernetes version in  worker.yaml
+        ├── machine_count.json                           # patches replica count for machine deployments in worker.yaml
+        └── md_name
+            ├── dockermachinetemplate-patch-name.json    # patch machine deployment name for kind dockermachinetemplate in worker.yaml
+            ├── kubeadmconfigtemplate-patch-name.json    # patch machine deployment name for kind kubeadmconfigtemplate in worker.yaml
+            └── machinedeployment-patch.json             # patch machine deployment name for kind machinedeployment in worker.yaml
 
-airshipctl cluster init --debug
-```
-
-`$ tree  ~/.cluster-api`
-
-```
-~/.cluster-api
-└── overrides
-    └── infrastructure-docker
-        └── v0.3.0
-            ├── infrastructure-components.yaml
-            └── metadata.yaml
-
-3 directories, 2 files
-```
-
-As a result, when `airshipctl cluster init` initializes the management cluster with infrastructure-provider `docker` component, it uses the metadata available at `$HOME/.cluster-api/overrides/`
-
-$ airshipctl cluster init --debug
-
-```
-Provider type: InfrastructureProvider, name: docker
-Fetching File="components.yaml" Provider="infrastructure-docker" Version="v0.3.0"
-[airshipctl] 2020/07/01 10:48:42 Building cluster-api provider component documents from kustomize path at /tmp/airship/airshipctl/manifests/function/capd/v0.3.0
-[airshipctl] 2020/07/01 10:48:42 Creating arishipctl repository implementation interface for provider cluster-api of type CoreProvider
-[airshipctl] 2020/07/01 10:48:43 Creating arishipctl repository implementation interface for provider docker of type InfrastructureProvider
-Using Override="metadata.yaml" Provider="infrastructure-docker" Version="v0.3.0"
-```
-
-### CAPD Manager Image Version
-
-`airshipctl/manifests/function/capd/v0.3.0/manager/manager_image_patch.yaml`
-
-The capd-manager version to be used is configured in `manager_image_patch.yaml`
-
-`$ cat manager_image_patch.yaml`
-
-```
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: controller-manager
-  namespace: system
-spec:
-  template:
-    spec:
-      containers:
-      # Change the value of image field below to your controller image URL
-      - image: gcr.io/k8s-staging-cluster-api/capd-manager:master
-        name: manager
-
-```
-
-### Docker Test Site Manifests
-
-Docker Test Site contains shared and target directories, which have manifests for initializing the management and deploying the workload cluster respectively.
-
-`$ tree manifests/site/docker-test-site`
-
-```
-manifests/site/docker-test-site
-├── shared
-│   └── clusterctl
-│       ├── clusterctl.yaml
-│       └── kustomization.yaml
-└── target
-    ├── docker
-    │   ├── docker-target-cluster.yaml
-    │   └── kustomization.yaml
-    └── initinfra
-        └── kustomization.yaml
-
-```
-
-#### Management cluster
-
-`airshipctl cluster init` uses to information in `manifests/site/docker-test-site/shared/clusterctl/clusterctl.yaml` to initialize the management cluster with cluster api and cluster api docker provider components.
-
-`$cat clusterctl.yaml`
-
-```
-apiVersion: airshipit.org/v1alpha1
-kind: Clusterctl
-metadata:
-  labels:
-    airshipit.org/deploy-k8s: "false"
-  name: clusterctl-v1
-init-options:
-  core-provider: "cluster-api:v0.3.3"
-  bootstrap-providers:
-    - "kubeadm:v0.3.3"
-  infrastructure-providers:
-    - "docker:v0.3.0"
-  control-plane-providers:
-    - "kubeadm:v0.3.3"
-providers:
-  - name: "docker"
-    type: "InfrastructureProvider"
-    versions:
-      v0.3.0: airshipctl/manifests/function/capd/v0.3.0
-  - name: "kubeadm"
-    type: "BootstrapProvider"
-    versions:
-      v0.3.3: airshipctl/manifests/function/cabpk/v0.3.3
-  - name: "cluster-api"
-    type: "CoreProvider"
-    versions:
-      v0.3.3: airshipctl/manifests/function/capi/v0.3.3
-  - name: "kubeadm"
-    type: "ControlPlaneProvider"
-    versions:
-      v0.3.3: airshipctl/manifests/function/cacpk/v0.3.3
-
-```
-
-#### Target workload cluster
-
-`airshipclt phase apply docker` uses the information in `manifests/site/docker-test-site/target/docker/docker-target-cluster.yaml`
-to deploy a workload cluster `dtc` with one control plane and one machine deployment.
-
-`$ cat docker-target-cluster.yaml`
-
-```
-apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
-kind: DockerCluster
-metadata:
-  name: dtc
-  namespace: default
----
-apiVersion: cluster.x-k8s.io/v1alpha3
-kind: Cluster
-metadata:
-  name: dtc
-  namespace: default
-spec:
-  clusterNetwork:
-    pods:
-      cidrBlocks:
-      - 172.17.0.0/16
-    serviceDomain: cluster.local
-    services:
-      cidrBlocks:
-      - 10.0.0.0/24
-  controlPlaneRef:
-    apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
-    kind: KubeadmControlPlane
-    name: dtc-control-plane
-  infrastructureRef:
-    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
-    kind: DockerCluster
-    name: dtc
----
-apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
-kind: DockerMachineTemplate
-metadata:
-  name: dtc-control-plane
-  namespace: default
-spec:
-  template:
-    spec:
-      extraMounts:
-      - containerPath: /var/run/docker.sock
-        hostPath: /var/run/docker.sock
----
-apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
-kind: KubeadmControlPlane
-metadata:
-  name: dtc-control-plane
-  namespace: default
-spec:
-  infrastructureTemplate:
-    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
-    kind: DockerMachineTemplate
-    name: dtc-control-plane
-  kubeadmConfigSpec:
-    clusterConfiguration:
-      apiServer:
-        certSANs:
-        - localhost
-        - 127.0.0.1
-      controllerManager:
-        extraArgs:
-          enable-hostpath-provisioner: "true"
-    files:
-      - path: /calico.sh
-        owner: root:root
-        permissions: "0755"
-        content: |
-          #!/bin/sh -x
-          su - root -c "sleep 10; kubectl --kubeconfig /etc/kubernetes/admin.conf apply -f https://docs.projectcalico.org/v3.12/manifests/calico.yaml"
-    initConfiguration:
-      nodeRegistration:
-        criSocket: /var/run/containerd/containerd.sock
-        kubeletExtraArgs:
-          eviction-hard: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%
-    joinConfiguration:
-      nodeRegistration:
-        criSocket: /var/run/containerd/containerd.sock
-        kubeletExtraArgs:
-          eviction-hard: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%
-    postKubeadmCommands:
-      - sh /calico.sh
-  replicas: 1
-  version: v1.17.0
----
-apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
-kind: DockerMachineTemplate
-metadata:
-  name: dtc-md-0
-  namespace: default
-spec:
-  template:
-    spec:
-      extraMounts:
-      - containerPath: /var/run/docker.sock
-        hostPath: /var/run/docker.sock
----
-apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
-kind: KubeadmConfigTemplate
-metadata:
-  name: dtc-md-0
-  namespace: default
-spec:
-  template:
-    spec:
-      joinConfiguration:
-        nodeRegistration:
-          criSocket: /var/run/containerd/containerd.sock
-          kubeletExtraArgs:
-            eviction-hard: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%
----
-apiVersion: cluster.x-k8s.io/v1alpha3
-kind: MachineDeployment
-metadata:
-  name: dtc-md-0
-  namespace: default
-spec:
-  clusterName: dtc
-  replicas: 1
-  selector:
-    matchLabels: null
-  template:
-    metadata:
-      labels:
-        nodepool: pool1
-    spec:
-      bootstrap:
-        configRef:
-          apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
-          kind: KubeadmConfigTemplate
-          name: dtc-md-0
-      clusterName: dtc
-      infrastructureRef:
-        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
-        kind: DockerMachineTemplate
-        name: dtc-md-0
-      version: v1.17.0
----
-apiVersion: cluster.x-k8s.io/v1alpha3
-kind: MachineHealthCheck
-metadata:
-  name: dtc-mhc-0
-  namespace: default
-spec:
-  clusterName: dtc
-  maxUnhealthy: 100%
-  selector:
-    matchLabels:
-      nodepool: pool1
-  unhealthyConditions:
-  - status: "True"
-    timeout: 30s
-    type: E2ENodeUnhealthy
-```
-
-### Airshipctl Configuration File
-
-The below configuration shows the final state of `~/.airship/config` post deployment of a management cluster and a workload cluster.
-
-There are two clusters kind-capi-docker - the management cluster, and dtc - target workload cluster.
-
-`airshipctl config get-context` can be used to get information on the contexts, and the manifests used by each context.
-
-`$ cat ~/.airship/config`
-
-```
-
-apiVersion: airshipit.org/v1alpha1
-bootstrapInfo:
-  default:
-    builder:
-      networkConfigFileName: network-config
-      outputMetadataFileName: output-metadata.yaml
-      userDataFileName: user-data
-    container:
-      containerRuntime: docker
-      image: quay.io/airshipit/isogen:latest-debian_stable
-      volume: /srv/iso:/config
-    remoteDirect:
-      isoUrl: http://localhost:8099/debian-custom.iso
-clusters:
-  dtc:
-    clusterType:
-      target:
-        bootstrapInfo: default
-        clusterKubeconf: dtc_target
-        managementConfiguration: default
-  kind-capi-docker:
-    clusterType:
-      target:
-        bootstrapInfo: default
-        clusterKubeconf: kind-capi-docker_target
-        managementConfiguration: default
-contexts:
-  dtc-admin@dtc:
-    contextKubeconf: dtc_target
-    manifest: docker_manifest
-  kind-capi-docker:
-    contextKubeconf: kind-capi-docker_target
-    manifest: docker_manifest
-currentContext: kind-capi-docker
-kind: Config
-managementConfiguration:
-  default:
-    systemActionRetries: 30
-    systemRebootDelay: 30
-    type: redfish
-manifests:
-  default:
-    primaryRepositoryName: primary
-    repositories:
-      primary:
-        checkout:
-          branch: master
-          commitHash: ""
-          force: false
-          tag: ""
-        url: https://opendev.org/airship/treasuremap
-    subPath: treasuremap/manifests/site
-    targetPath: /tmp/default
-  docker_manifest:
-    primaryRepositoryName: primary
-    repositories:
-      primary:
-        checkout:
-          branch: master
-          commitHash: ""
-          force: false
-          tag: ""
-        url: https://review.opendev.org/airship/airshipctl
-    subPath: airshipctl/manifests/site/docker-test-site
-    targetPath: /tmp/airship
-users:
-  dtc-admin: {}
-  kind-capi-docker: {}
-
-```
-
-$ airshipctl config get-context
-
-```
-Context: dtc
-contextKubeconf: dtc_target
-manifest: docker_manifest
-
-LocationOfOrigin: /home/rishabh/.airship/kubeconfig
-cluster: dtc_target
-user: dtc-admin
-
-
-Context: kind-capi-docker
-contextKubeconf: kind-capi-docker_target
-manifest: docker_manifest
-
-LocationOfOrigin: /home/rishabh/.airship/kubeconfig
-cluster: kind-capi-docker_target
-user: kind-capi-docker
+12 directories, 18 files
 ```
 
 ### Software Version Information
 
-All the instructions provided in the document have been tested using the software and version, provided in this section.
+All the instructions provided in the document have been tested using the
+software and version, provided in this section.
+
+#### Virtual Machine Specification
+
+All the instructions in the document were perfomed on a Oracle Virtual Box(6.1)
+VM running Ubuntu 18.04.4 LTS (Bionic Beaver) with 16G of memory and 4 VCPUs
 
 #### Docker
 
@@ -1169,7 +801,7 @@ Server: Docker Engine - Community
 $ kind version
 
 ```
-kind v0.7.0 go1.13.6 linux/amd64
+kind v0.8.1 go1.14.2 linux/amd64
 ```
 
 #### Kubectl
@@ -1216,74 +848,12 @@ VERSION_CODENAME=bionic
 UBUNTU_CODENAME=bionic
 ```
 
-#### Special Instructions
+## Special Instructions
 
 Swap was disabled on the VM using `sudo swapoff -a`
 
-#### Virtual Machine Specification
-
-All the instructions in the document were perfomed on a Oracle Virtual Box VM running Ubuntu 18.04.4 LTS (Bionic Beaver) with 16G of memory and 4 VCPUs
-
 ## Future Improvements
 
-This section includes the some of the potential improvements that can be made with airshipctl and cluster api  docker integration.
-
-### Remove usage of docker overrides
-
-`infrastructure-components.yaml` and `metadata.yaml` can be included as a part of the the cluster api docker manifests in the following manner:
-
-```
-manifests/function/capd
-└── v0.3.0
-    ├── infrastructure-docker
-    │   └── v0.3.0
-    │       ├── infrastructure-components.yaml
-    │       └── metadata.yaml
-```
-
-And, docker provider configuration in `clusterctl.yaml` can use a local url to reference the `infrastructure-components.yaml`.
-
-$ cat  manifests/site/docker-test-site/shared/clusterctl/clusterctl.yaml
-
-```
-apiVersion: airshipit.org/v1alpha1
-kind: Clusterctl
-metadata:
-  labels:
-    airshipit.org/deploy-k8s: "false"
-  name: clusterctl-v1
-init-options:
-  infrastructure-providers:
-    - "docker:v0.3.0"
-providers:
-  - name: "docker"
-    type: "InfrastructureProvider"
-    url: "/tmp/airship/airshipctl/manifests/function/capd/v0.3.0/infrastructure-docker/v0.3.0/infrastructure-components.yaml"
-    clusterctl-repository: true
-
-```
-However, this approach requires airshipctl configuration to include manifests in the following manner:
-
-```
-  docker_manifest:
-    primaryRepositoryName: primary
-    repositories:
-      primary:
-        checkout:
-          branch: master
-          commitHash: ""
-          force: false
-          tag: ""
-        url: https://review.opendev.org/airship/airshipctl
-    subPath: airshipctl/manifests/site/docker-test-site
-    targetPath: /tmp/airship
-```
-
-This would make sure that when `airshipctl document pull` is executed, the `url` field in `clusterctl.yaml` configuration file,  would refer to a valid path - `/tmp/airship/airshipctl/manifests/function/capd/v0.3.0/infrastructure-docker/v0.3.0/infrastructure-components.yaml` on the local file system.
-If this approach is used in future, one would not have to run the local overrides hack for docker before executing `airshipctl cluster init`.
-
-## See Also
-
-### Zuul Check And Testing Scripts Locally
-
-* [Zuul Check And Testing Scripts Locally](tests/README.md)
+Improvements to the patchset are being made on feedback. To suggest any
+improvements, please visit
+[feedback](https://hackmd.io/zRBXoX9fR5O2JjmGme5r1Q?view)
