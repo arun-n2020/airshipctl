@@ -1,0 +1,14 @@
+apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
+kind: KubeadmControlPlane
+metadata:
+  name: "${CLUSTER_NAME}-control-plane"
+spec:
+  kubeadmConfigSpec:
+    files:
+    - content: |
+        #!/bin/sh -x
+        su - root -c "sleep 10; kubectl --kubeconfig /etc/kubernetes/admin.conf apply -f https://docs.projectcalico.org/v3.12/manifests/calico.yaml"
+        su - root -c "apt-get update && apt-get install -y git && git clone https://github.com/intel/multus-cni.git && cat ./multus-cni/images/multus-daemonset.yml | kubectl --kubeconfig /etc/kubernetes/admin.conf apply -f -"
+      owner: root:root
+      path: /calico.sh
+      permissions: "0755"

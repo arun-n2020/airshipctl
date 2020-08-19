@@ -1,0 +1,16 @@
+apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
+kind: KubeadmConfigTemplate
+metadata:
+  name: "${CLUSTER_NAME}-md-0"
+spec:
+  template:
+    spec:
+      files:
+      - content: |
+          #!/bin/sh -x
+          su - root -c "curl -fsSL https://github.com/containernetworking/plugins/releases/download/v0.8.6/cni-plugins-linux-amd64-v0.8.6.tgz | tar -xz -C /opt/cni/bin/" 
+        owner: root:root
+        path: /cniplugin.sh
+        permissions: "0755"
+      postKubeadmCommands:
+       - sh /cniplugin.sh
