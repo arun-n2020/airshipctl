@@ -1,5 +1,0 @@
-[
-  { "op": "replace", "path": "/metadata/name", "value": "dtc-md-0" },
-  { "op": "replace", "path": "/spec/template/spec/bootstrap/configRef/name", "value": "dtc-md-0" },
-  { "op": "replace", "path": "/spec/template/spec/infrastructureRef/name", "value": "dtc-md-0" }
-]

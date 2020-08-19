@@ -1,4 +1,0 @@
-[
-  { "op": "replace", "path": "/spec/clusterName", "value": "dtc" },
-  { "op": "replace", "path": "/spec/template/spec/clusterName", "value": "dtc" }
-]

@@ -1,4 +1,0 @@
-[
-    { "op": "replace", "path": "/metadata/name", "value": "dtc-control-plane" },
-    { "op": "replace", "path": "/spec/infrastructureTemplate/name", "value": "dtc-control-plane" }
-]

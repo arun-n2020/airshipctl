@@ -1,4 +1,0 @@
-[
-  { "op": "replace", "path": "/metadata/name", "value": "dtc" },
-  { "op": "replace", "path": "/spec/infrastructureRef/name", "value": "dtc" }
-]

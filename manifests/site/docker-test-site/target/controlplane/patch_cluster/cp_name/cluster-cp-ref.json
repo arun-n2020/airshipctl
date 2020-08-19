@@ -1,3 +1,0 @@
-[
-    { "op": "replace", "path": "/spec/controlPlaneRef/name", "value": "dtc-control-plane" }
-]
